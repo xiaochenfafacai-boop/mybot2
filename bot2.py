@@ -15,7 +15,7 @@ import os
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # ========== 配置 ==========
-TOKEN = "8254199006:AAGIICCdDwKcbo7aNZnPb8Pcj_j9Q8B0uZs"
+TOKEN = "8254199006:AAFtocI3S6L34JDMVJcm4D6EAW6H1qY3tvo"
 MASTER_USER_ID = 8782394486
 WEB_URL = "https://mybot2-8hhty.onrender.com"
 PORT = int(os.environ.get('PORT', 8080))
