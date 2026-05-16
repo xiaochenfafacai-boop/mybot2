@@ -1146,29 +1146,33 @@ async def accounting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     gid = update.effective_chat.id
     uid = update.effective_user.id
     username = update.effective_user.first_name
+    
     is_active = get_setting(gid, 'is_active') or 0
     if is_active == 0:
+        await update.message.reply_text("⚠️ 记账模式未开启，请先发送 /mode")
         return
     if not can_use(gid, uid):
+        await update.message.reply_text("❌ 你没有操作权限")
         return
     
+    # +0 查看今日汇总
     if text == '+0':
         await show_today_summary(update, gid)
         return
     
-    # 下发: 下发50 或 文字下发50 (支持中文、缅文、英文)
-    withdraw_match = re.match(r'^([^\d]+)?下发(\d+(?:\.\d+)?)$', text)
+    # 下发: 下发50 或 文字下发50
+    withdraw_match = re.match(r'^([a-zA-Z\u4e00-\u9fa5]+)?下发(\d+(?:\.\d+)?)$', text)
     if withdraw_match:
-        remark = withdraw_match.group(1).strip() if withdraw_match.group(1) else ''
+        remark = withdraw_match.group(1) if withdraw_match.group(1) else ''
         amount = float(withdraw_match.group(2))
         add_bill(gid, uid, username, remark, amount, 'withdraw')
         await show_full_bill(update, gid)
         return
     
-    # 入款: +1000 或 文字+1000 (支持中文、缅文、英文)
-    income_match = re.match(r'^([^\d]+)?\+(\d+(?:\.\d+)?)(?:/(\d+(?:\.\d+)?))?$', text)
+    # 入款: +1000 或 文字+1000
+    income_match = re.match(r'^([a-zA-Z\u4e00-\u9fa5]+)?\+(\d+(?:\.\d+)?)(?:/(\d+(?:\.\d+)?))?$', text)
     if income_match:
-        remark = income_match.group(1).strip() if income_match.group(1) else ''
+        remark = income_match.group(1) if income_match.group(1) else ''
         amount = float(income_match.group(2))
         custom_rate = float(income_match.group(3)) if income_match.group(3) else None
         exchange_rate = custom_rate if custom_rate else get_setting(gid, 'exchange_rate') or 7.2
@@ -1176,10 +1180,10 @@ async def accounting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_full_bill(update, gid)
         return
     
-    # 出款: -500 或 文字-500 (支持中文、缅文、英文)
-    expense_match = re.match(r'^([^\d]+)?-(\d+(?:\.\d+)?)(?:/(\d+(?:\.\d+)?))?$', text)
+    # 出款: -500 或 文字-500
+    expense_match = re.match(r'^([a-zA-Z\u4e00-\u9fa5]+)?-(\d+(?:\.\d+)?)(?:/(\d+(?:\.\d+)?))?$', text)
     if expense_match:
-        remark = expense_match.group(1).strip() if expense_match.group(1) else ''
+        remark = expense_match.group(1) if expense_match.group(1) else ''
         amount = float(expense_match.group(2))
         custom_rate = float(expense_match.group(3)) if expense_match.group(3) else None
         exchange_rate = custom_rate if custom_rate else get_setting(gid, 'exchange_rate') or 7.2
