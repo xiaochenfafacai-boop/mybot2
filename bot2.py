@@ -15,7 +15,7 @@ import os
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # ========== 配置 ==========
-TOKEN = "8254199006:AAHKzpsvtuZq25QGCm8ijwb6lbsF2s6JnSo"
+TOKEN = "8254199006:AAFFFn4YeFUuTMDWStM6ydbXTE-ftzX4oBw"
 MASTER_USER_ID = 8782394486
 WEB_URL = "https://mybot2-8hhty.onrender.com"
 PORT = int(os.environ.get('PORT', 8080))
@@ -104,9 +104,9 @@ def can_use(group_id, user_id):
 def add_bill(group_id, user_id, username, remark, amount, bill_type, exchange_rate=None):
     if exchange_rate is None:
         exchange_rate = get_setting(group_id, 'exchange_rate') or 7.2
-    if bill_type == 'income':
+    if bill_type == 'income':  # 入款
         usdt_amount = amount / exchange_rate
-    elif bill_type == 'expense':
+    elif bill_type == 'expense':  # 出款
         usdt_amount = amount / exchange_rate
     else:  # withdraw (下发)
         usdt_amount = amount
@@ -221,18 +221,6 @@ def get_remark_stats(group_id, date_str):
     withdraw_stats = c.fetchall()
     conn.close()
     return income_stats, expense_stats, withdraw_stats
-
-def get_operator_stats(group_id, date_str):
-    conn = sqlite3.connect('bot_data.db')
-    c = conn.cursor()
-    c.execute("SELECT username, COUNT(*), SUM(amount), SUM(usdt_amount) FROM bills WHERE group_id = ? AND bill_type = 'income' AND date(timestamp) = ? GROUP BY username ORDER BY SUM(usdt_amount) DESC", 
-              (group_id, date_str))
-    income_stats = c.fetchall()
-    c.execute("SELECT username, COUNT(*), SUM(amount), SUM(usdt_amount) FROM bills WHERE group_id = ? AND bill_type = 'expense' AND date(timestamp) = ? GROUP BY username ORDER BY SUM(usdt_amount) DESC", 
-              (group_id, date_str))
-    expense_stats = c.fetchall()
-    conn.close()
-    return income_stats, expense_stats
 
 # ========== CSV 导出 ==========
 
@@ -377,7 +365,6 @@ def index():
                     }
                     let html = '';
                     
-                    // 入款记录
                     if (data.income_bills && data.income_bills.length > 0) {
                         html += `<div class="section"><div class="section-title">📥 入款记录 (${data.income_bills.length} 笔)</div>
                             <table><thead><tr><th>备注</th><th>时间</th><th>金额(元)</th><th>汇率</th><th>USDT</th><th>操作人</th></tr></thead><tbody>`;
@@ -396,10 +383,9 @@ def index():
                         html += `<div class="section"><div class="section-title">📥 入款记录</div><div class="loading">暂无入款记录</div></div>`;
                     }
                     
-                    // 出款记录
                     if (data.expense_bills && data.expense_bills.length > 0) {
                         html += `<div class="section"><div class="section-title">📤 出款记录 (${data.expense_bills.length} 笔)</div>
-                            <tr><thead><tr><th>备注</th><th>时间</th><th>金额(元)</th><th>汇率</th><th>USDT</th><th>操作人</th></tr></thead><tbody>`;
+                            <table><thead><tr><th>备注</th><th>时间</th><th>金额(元)</th><th>汇率</th><th>USDT</th><th>操作人</th></tr></thead><tbody>`;
                         for (const bill of data.expense_bills) {
                             html += `<tr>
                                 <td>${bill.remark || '-'}</td>
@@ -415,7 +401,6 @@ def index():
                         html += `<div class="section"><div class="section-title">📤 出款记录</div><div class="loading">暂无出款记录</div></div>`;
                     }
                     
-                    // 下发记录
                     if (data.withdraw_bills && data.withdraw_bills.length > 0) {
                         html += `<div class="section"><div class="section-title">📤 下发记录 (${data.withdraw_bills.length} 笔)</div>
                             <table><thead><tr><th>备注</th><th>时间</th><th>USDT</th><th>操作人</th></tr></thead><tbody>`;
@@ -427,12 +412,11 @@ def index():
                                 <td>${bill.username}</td>
                             </tr>`;
                         }
-                        html += `</tbody></table></div>`;
+                        html += `</tbody></tr></div>`;
                     } else {
                         html += `<div class="section"><div class="section-title">📤 下发记录</div><div class="loading">暂无下发记录</div></div>`;
                     }
                     
-                    // 备注分类统计
                     if (data.remark_stats && (data.remark_stats.income.length > 0 || data.remark_stats.expense.length > 0 || data.remark_stats.withdraw.length > 0)) {
                         html += `<div class="section"><div class="section-title">📊 备注分类统计</div>`;
                         if (data.remark_stats.income.length > 0) {
@@ -459,7 +443,6 @@ def index():
                         html += `</div>`;
                     }
                     
-                    // 汇总统计
                     html += `<div class="stats-box"><div class="stats-grid">
                         <div class="stat-card"><div class="stat-label">💰 费率</div><div class="stat-value">${data.fee_rate}<span class="stat-unit">%</span></div></div>
                         <div class="stat-card"><div class="stat-label">💱 汇率</div><div class="stat-value">${data.exchange_rate}</div></div>
@@ -566,13 +549,10 @@ def api_bill():
 # ========== 机器人命令 ==========
 
 def get_bill_content(income, expense, withdraw, total_income_rmb, total_income_usdt, total_expense_rmb, total_expense_usdt, total_withdraw_usdt, net_usdt, rate, show_usdt, today_date, lang):
-    """生成账单内容（支持多语言和显示/隐藏U）"""
     if lang == 'myanmar':
         income_title = "📥 ဝင်ငွေ"
         expense_title = "📤 ထုတ်ငွေ"
         withdraw_title = "📤 ထုတ်ချေး"
-        no_data = "စာရင်းမရှိပါ"
-        more_text = "နောက်ထပ်"
         exchange_text = "💰 ငွေလဲနှုန်း"
         total_income_text = "📊 စုစုပေါင်းဝင်ငွေ"
         total_expense_text = "📊 စုစုပေါင်းထုတ်ငွေ"
@@ -580,12 +560,11 @@ def get_bill_content(income, expense, withdraw, total_income_rmb, total_income_u
         withdraw_text = "📊 ထုတ်ပြီး"
         remaining_text = "📊 ကျန်ငွေ"
         unit = "U"
+        more_text = "နောက်ထပ်"
     else:
         income_title = "📥 入款"
         expense_title = "📤 出款"
         withdraw_title = "📤 下发"
-        no_data = "暂无记录"
-        more_text = "还有"
         exchange_text = "💰 汇率"
         total_income_text = "📊 总入款"
         total_expense_text = "📊 总出款"
@@ -593,56 +572,52 @@ def get_bill_content(income, expense, withdraw, total_income_rmb, total_income_u
         withdraw_text = "📊 已下发"
         remaining_text = "📊 未下发"
         unit = "U"
+        more_text = "还有"
     
     message = f"📊 今日账单汇总 {today_date}\n━━━━━━━━━━━━━━━━━━━━\n\n"
     
-    # 入款
     if income:
         message += f"{income_title}({len(income)} 笔):\n"
         for bill in income[:5]:
             remark, username, amount, usdt, ex_rate, ts = bill
             time_short = ts[11:16] if len(ts) > 11 else ts
-            sign = "+"
             if remark:
                 if show_usdt:
-                    message += f"  {username}【{remark}】{time_short}  {sign}{amount:.0f} / {ex_rate:.0f} = {usdt:.2f} {unit}\n"
+                    message += f"  {username}【{remark}】{time_short}  +{amount:.0f} / {ex_rate:.0f} = {usdt:.2f} {unit}\n"
                 else:
-                    message += f"  {username}【{remark}】{time_short}  {sign}{amount:.0f} / {ex_rate:.0f} = {usdt:.2f}\n"
+                    message += f"  {username}【{remark}】{time_short}  +{amount:.0f} / {ex_rate:.0f} = {usdt:.2f}\n"
             else:
                 if show_usdt:
-                    message += f"  {username} {time_short}  {sign}{amount:.0f} / {ex_rate:.0f} = {usdt:.2f} {unit}\n"
+                    message += f"  {username} {time_short}  +{amount:.0f} / {ex_rate:.0f} = {usdt:.2f} {unit}\n"
                 else:
-                    message += f"  {username} {time_short}  {sign}{amount:.0f} / {ex_rate:.0f} = {usdt:.2f}\n"
+                    message += f"  {username} {time_short}  +{amount:.0f} / {ex_rate:.0f} = {usdt:.2f}\n"
         if len(income) > 5:
             message += f"  ... {more_text} {len(income)-5} 笔\n"
         message += "\n"
     else:
         message += f"{income_title}(0 笔):\n\n"
     
-    # 出款
     if expense:
         message += f"{expense_title}({len(expense)} 笔):\n"
         for bill in expense[:5]:
             remark, username, amount, usdt, ex_rate, ts = bill
             time_short = ts[11:16] if len(ts) > 11 else ts
-            sign = "-"
             if remark:
                 if show_usdt:
-                    message += f"  {username}【{remark}】{time_short}  {sign}{amount:.0f} / {ex_rate:.0f} = -{usdt:.2f} {unit}\n"
+                    message += f"  {username}【{remark}】{time_short}  -{amount:.0f} / {ex_rate:.0f} = -{usdt:.2f} {unit}\n"
                 else:
-                    message += f"  {username}【{remark}】{time_short}  {sign}{amount:.0f} / {ex_rate:.0f} = -{usdt:.2f}\n"
+                    message += f"  {username}【{remark}】{time_short}  -{amount:.0f} / {ex_rate:.0f} = -{usdt:.2f}\n"
             else:
                 if show_usdt:
-                    message += f"  {username} {time_short}  {sign}{amount:.0f} / {ex_rate:.0f} = -{usdt:.2f} {unit}\n"
+                    message += f"  {username} {time_short}  -{amount:.0f} / {ex_rate:.0f} = -{usdt:.2f} {unit}\n"
                 else:
-                    message += f"  {username} {time_short}  {sign}{amount:.0f} / {ex_rate:.0f} = -{usdt:.2f}\n"
+                    message += f"  {username} {time_short}  -{amount:.0f} / {ex_rate:.0f} = -{usdt:.2f}\n"
         if len(expense) > 5:
             message += f"  ... {more_text} {len(expense)-5} 笔\n"
         message += "\n"
     else:
         message += f"{expense_title}(0 笔):\n\n"
     
-    # 下发
     if withdraw:
         message += f"{withdraw_title}({len(withdraw)} 笔):\n"
         for bill in withdraw[:5]:
@@ -1119,7 +1094,6 @@ async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 `-500` - 出款500元
 `အမည်-500` - 带备注出款
 `下发50` - 下发50 USDT
-`备注下发50` - 带备注下发
 `+0` - 查看今日汇总
 `/bill` - 获取网页账单链接
 
@@ -1155,7 +1129,7 @@ async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = f"🤖 *记账机器人*\n\n📌 状态: {status}\n💰 汇率: 1 USDT = {rate:.2f} 元\n"
     message += "━━━━━━━━━━━━━━━━━━━━\n\n📝 *记账格式:*\n`+1000` - 入款\n"
     message += "`အမည်+1000` - 带备注入款\n`-500` - 出款\n`အမည်-500` - 带备注出款\n"
-    message += "`下发50` - 下发USDT\n`备注下发50` - 带备注下发\n`+0` - 查看今日汇总\n\n"
+    message += "`下发50` - 下发USDT\n`+0` - 查看今日汇总\n\n"
     message += "📌 *管理命令:*\n`/mode` - 开关记账模式\n`/setrate` - 设置汇率\n`/setoperator` - 设置操作人\n"
     message += "`/bill` - 查看今日账单\n`/language` - 切换语言\n`/timezone` - 设置时区\n"
     message += "`/deltoday` - 删除今日账单\n`/dellast` - 删除最后一笔\n`/delall` - 删除所有账单\n"
@@ -1177,36 +1151,37 @@ async def accounting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if not can_use(gid, uid):
         return
+    
     if text == '+0':
         await show_today_summary(update, gid)
         return
     
     # 下发: 下发50 或 备注下发50
-    match = re.match(r'^([^\\d]+)?下发(\\d+(?:\\.\\d+)?)$', text)
-    if match:
-        remark = match.group(1).strip() if match.group(1) else ''
-        amount = float(match.group(2))
+    withdraw_match = re.match(r'^([a-zA-Z\u4e00-\u9fa5]+)?下发(\d+(?:\.\d+)?)$', text)
+    if withdraw_match:
+        remark = withdraw_match.group(1) if withdraw_match.group(1) else ''
+        amount = float(withdraw_match.group(2))
         add_bill(gid, uid, username, remark, amount, 'withdraw')
         await show_full_bill(update, gid)
         return
     
     # 入款: +1000 或 备注+1000
-    match = re.match(r'^([^+\\d]+)?\\+(\\d+(?:\\.\\d+)?)(?:/(\\d+(?:\\.\\d+)?))?$', text)
-    if match:
-        remark = match.group(1).strip() if match.group(1) else ''
-        amount = float(match.group(2))
-        custom_rate = float(match.group(3)) if match.group(3) else None
+    income_match = re.match(r'^([a-zA-Z\u4e00-\u9fa5]+)?\+(\d+(?:\.\d+)?)(?:/(\d+(?:\.\d+)?))?$', text)
+    if income_match:
+        remark = income_match.group(1) if income_match.group(1) else ''
+        amount = float(income_match.group(2))
+        custom_rate = float(income_match.group(3)) if income_match.group(3) else None
         exchange_rate = custom_rate if custom_rate else get_setting(gid, 'exchange_rate') or 7.2
         add_bill(gid, uid, username, remark, amount, 'income', exchange_rate)
         await show_full_bill(update, gid)
         return
     
     # 出款: -500 或 备注-500
-    match = re.match(r'^([^-\\d]+)?-(\\d+(?:\\.\\d+)?)(?:/(\\d+(?:\\.\\d+)?))?$', text)
-    if match:
-        remark = match.group(1).strip() if match.group(1) else ''
-        amount = float(match.group(2))
-        custom_rate = float(match.group(3)) if match.group(3) else None
+    expense_match = re.match(r'^([a-zA-Z\u4e00-\u9fa5]+)?-(\d+(?:\.\d+)?)(?:/(\d+(?:\.\d+)?))?$', text)
+    if expense_match:
+        remark = expense_match.group(1) if expense_match.group(1) else ''
+        amount = float(expense_match.group(2))
+        custom_rate = float(expense_match.group(3)) if expense_match.group(3) else None
         exchange_rate = custom_rate if custom_rate else get_setting(gid, 'exchange_rate') or 7.2
         add_bill(gid, uid, username, remark, amount, 'expense', exchange_rate)
         await show_full_bill(update, gid)
