@@ -15,7 +15,7 @@ import os
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # ========== 配置 ==========
-TOKEN = "8254199006:AAFFFn4YeFUuTMDWStM6ydbXTE-ftzX4oBw"
+TOKEN = "8254199006:AAGIICCdDwKcbo7aNZnPb8Pcj_j9Q8B0uZs"
 MASTER_USER_ID = 8782394486
 WEB_URL = "https://mybot2-8hhty.onrender.com"
 PORT = int(os.environ.get('PORT', 8080))
@@ -367,7 +367,7 @@ def index():
                     
                     if (data.income_bills && data.income_bills.length > 0) {
                         html += `<div class="section"><div class="section-title">📥 入款记录 (${data.income_bills.length} 笔)</div>
-                            <table><thead><tr><th>备注</th><th>时间</th><th>金额(元)</th><th>汇率</th><th>USDT</th><th>操作人</th></tr></thead><tbody>`;
+                            <tr><thead><tr><th>备注</th><th>时间</th><th>金额(元)</th><th>汇率</th><th>USDT</th><th>操作人</th></tr></thead><tbody>`;
                         for (const bill of data.income_bills) {
                             html += `<tr>
                                 <td>${bill.remark || '-'}</td>
@@ -403,16 +403,16 @@ def index():
                     
                     if (data.withdraw_bills && data.withdraw_bills.length > 0) {
                         html += `<div class="section"><div class="section-title">📤 下发记录 (${data.withdraw_bills.length} 笔)</div>
-                            <table><thead><tr><th>备注</th><th>时间</th><th>USDT</th><th>操作人</th></tr></thead><tbody>`;
+                            </table><thead><tr><th>备注</th><th>时间</th><th>USDT</th><th>操作人</th></tr></thead><tbody>`;
                         for (const bill of data.withdraw_bills) {
-                            html += `<tr>
+                            html += `<td>
                                 <td>${bill.remark || '-'}</td>
                                 <td>${bill.time}</td>
                                 <td>${bill.usdt}U</td>
                                 <td>${bill.username}</td>
                             </tr>`;
                         }
-                        html += `</tbody></tr></div>`;
+                        html += `</tbody></table></div>`;
                     } else {
                         html += `<div class="section"><div class="section-title">📤 下发记录</div><div class="loading">暂无下发记录</div></div>`;
                     }
@@ -1156,19 +1156,19 @@ async def accounting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_today_summary(update, gid)
         return
     
-    # 下发: 下发50 或 备注下发50
-    withdraw_match = re.match(r'^([a-zA-Z\u4e00-\u9fa5]+)?下发(\d+(?:\.\d+)?)$', text)
+    # 下发: 下发50 或 文字下发50 (支持中文、缅文、英文)
+    withdraw_match = re.match(r'^([^\d]+)?下发(\d+(?:\.\d+)?)$', text)
     if withdraw_match:
-        remark = withdraw_match.group(1) if withdraw_match.group(1) else ''
+        remark = withdraw_match.group(1).strip() if withdraw_match.group(1) else ''
         amount = float(withdraw_match.group(2))
         add_bill(gid, uid, username, remark, amount, 'withdraw')
         await show_full_bill(update, gid)
         return
     
-    # 入款: +1000 或 备注+1000
-    income_match = re.match(r'^([a-zA-Z\u4e00-\u9fa5]+)?\+(\d+(?:\.\d+)?)(?:/(\d+(?:\.\d+)?))?$', text)
+    # 入款: +1000 或 文字+1000 (支持中文、缅文、英文)
+    income_match = re.match(r'^([^\d]+)?\+(\d+(?:\.\d+)?)(?:/(\d+(?:\.\d+)?))?$', text)
     if income_match:
-        remark = income_match.group(1) if income_match.group(1) else ''
+        remark = income_match.group(1).strip() if income_match.group(1) else ''
         amount = float(income_match.group(2))
         custom_rate = float(income_match.group(3)) if income_match.group(3) else None
         exchange_rate = custom_rate if custom_rate else get_setting(gid, 'exchange_rate') or 7.2
@@ -1176,10 +1176,10 @@ async def accounting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_full_bill(update, gid)
         return
     
-    # 出款: -500 或 备注-500
-    expense_match = re.match(r'^([a-zA-Z\u4e00-\u9fa5]+)?-(\d+(?:\.\d+)?)(?:/(\d+(?:\.\d+)?))?$', text)
+    # 出款: -500 或 文字-500 (支持中文、缅文、英文)
+    expense_match = re.match(r'^([^\d]+)?-(\d+(?:\.\d+)?)(?:/(\d+(?:\.\d+)?))?$', text)
     if expense_match:
-        remark = expense_match.group(1) if expense_match.group(1) else ''
+        remark = expense_match.group(1).strip() if expense_match.group(1) else ''
         amount = float(expense_match.group(2))
         custom_rate = float(expense_match.group(3)) if expense_match.group(3) else None
         exchange_rate = custom_rate if custom_rate else get_setting(gid, 'exchange_rate') or 7.2
@@ -1187,7 +1187,7 @@ async def accounting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_full_bill(update, gid)
         return
     
-    await update.message.reply_text("❌ 格式错误！\n正确格式：\n+1000\nအမည်+1000\n-500\nအမည်-500\n下发50\n备注下发50")
+    await update.message.reply_text("❌ 格式错误！\n正确格式：\n+1000\n备注+1000\n-500\n备注-500\n下发50\n备注下发50")
 
 def run_web():
     flask_app.run(host='0.0.0.0', port=PORT)
